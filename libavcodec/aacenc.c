@@ -973,6 +973,8 @@ static av_cold int aac_encode_init(AVCodecContext *avctx)
 
     /* Channel map and unspecified bitrate guessing */
     s->channels = avctx->channels;
+    if (s->channels == 1)
+        avctx->channel_layout = AV_CH_LAYOUT_MONO;
 
     s->needs_pce = 1;
     for (i = 0; i < FF_ARRAY_ELEMS(aac_normal_chan_layouts); i++) {
