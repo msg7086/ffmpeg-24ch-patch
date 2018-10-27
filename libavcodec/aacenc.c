@@ -96,8 +96,16 @@ static int put_audio_specific_config(AVCodecContext *avctx)
 {
     PutBitContext pb;
     AACEncContext *s = avctx->priv_data;
-    int channels = (!s->needs_pce)*(s->channels - (s->channels == 8 ? 1 : 0));
     const int max_size = 32;
+    int channels = (!s->needs_pce)*(s->channels - (s->channels == 8 ? 1 : 0));
+    if (avctx->channel_layout == AV_CH_LAYOUT_6POINT1)
+        channels = (!s->needs_pce)*11;
+    if (avctx->channel_layout == AV_CH_LAYOUT_7POINT1)
+        channels = (!s->needs_pce)*12;
+    if (avctx->channel_layout == AV_CH_LAYOUT_22POINT2)
+        channels = (!s->needs_pce)*13;
+    if (avctx->channel_layout == AV_CH_LAYOUT_7POINT1_TOP)
+        channels = (!s->needs_pce)*14;
 
     avctx->extradata = av_mallocz(max_size);
     if (!avctx->extradata)
@@ -998,6 +1006,12 @@ static av_cold int aac_encode_init(AVCodecContext *avctx)
     } else {
         s->reorder_map = aac_chan_maps[s->channels - 1];
         s->chan_map = aac_chan_configs[s->channels - 1];
+        if (avctx->channel_layout == AV_CH_LAYOUT_7POINT1_WIDE)
+            s->reorder_map = aac_chan_maps[8];
+        if (avctx->channel_layout == AV_CH_LAYOUT_7POINT1_TOP) {
+            s->reorder_map = aac_chan_maps[9];
+            s->chan_map = aac_chan_configs[8];
+        }
     }
 
     if (!avctx->bit_rate) {
