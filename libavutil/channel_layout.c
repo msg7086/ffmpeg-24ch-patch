@@ -101,6 +101,7 @@ static const struct {
     { "7.1",         8,  AV_CH_LAYOUT_7POINT1 },
     { "7.1(wide)",   8,  AV_CH_LAYOUT_7POINT1_WIDE_BACK },
     { "7.1(wide-side)",   8,  AV_CH_LAYOUT_7POINT1_WIDE },
+    { "7.1(top)",    8,  AV_CH_LAYOUT_7POINT1_TOP },
     { "octagonal",   8,  AV_CH_LAYOUT_OCTAGONAL },
     { "hexadecagonal", 16, AV_CH_LAYOUT_HEXADECAGONAL },
     { "downmix",     2,  AV_CH_LAYOUT_STEREO_DOWNMIX, },
