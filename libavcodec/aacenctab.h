@@ -36,7 +36,7 @@
 /** Total number of codebooks, including special ones **/
 #define CB_TOT_ALL 15
 
-#define AAC_MAX_CHANNELS 16
+#define AAC_MAX_CHANNELS 24
 #define AAC_MAX_CHAN_CONFIG 16
 extern const uint8_t *ff_aac_swb_size_1024[];
 extern const int      ff_aac_swb_size_1024_len;
@@ -59,13 +59,13 @@ static const int64_t aac_normal_chan_layouts[AAC_MAX_CHAN_CONFIG ] = {
     0,
     AV_CH_LAYOUT_6POINT1,
     AV_CH_LAYOUT_7POINT1,
-    0,// 22.2 not supported yet
+    AV_CH_LAYOUT_22POINT2,
     AV_CH_LAYOUT_7POINT1_TOP,
     0,
 };
 
 /** default channel configurations */
-static const uint8_t aac_chan_configs[AAC_MAX_CHAN_CONFIG][6] = {
+static const uint8_t aac_chan_configs[AAC_MAX_CHAN_CONFIG][17] = {
     {1, TYPE_SCE},                                         // 1 channel  - single channel element
     {1, TYPE_CPE},                                         // 2 channels - channel pair
     {2, TYPE_SCE, TYPE_CPE},                               // 3 channels - center + stereo
@@ -75,6 +75,8 @@ static const uint8_t aac_chan_configs[AAC_MAX_CHAN_CONFIG][6] = {
     {5, TYPE_SCE, TYPE_CPE, TYPE_CPE, TYPE_SCE, TYPE_LFE}, // 7 channels - front center + stereo + side stereo + back center + LFE
     {5, TYPE_SCE, TYPE_CPE, TYPE_CPE, TYPE_CPE, TYPE_LFE}, // 8 channels - front center + front stereo + side stereo + back stereo or (FLC|FRC) + LFE
     {5, TYPE_SCE, TYPE_CPE, TYPE_CPE, TYPE_LFE, TYPE_CPE}, // 8 channels - front center + front stereo + side stereo + LFE + front top stereo
+    {16, TYPE_SCE, TYPE_CPE, TYPE_CPE, TYPE_CPE, TYPE_CPE, TYPE_SCE, TYPE_LFE, TYPE_LFE,
+     TYPE_SCE, TYPE_CPE, TYPE_CPE, TYPE_SCE, TYPE_CPE, TYPE_SCE, TYPE_SCE, TYPE_CPE}, // 24 channels - 22.2 see ISO/IEC 14496-3:2009/Amd.4:2013
 };
 
 /**
@@ -91,6 +93,7 @@ static const uint8_t aac_chan_maps[AAC_MAX_CHAN_CONFIG][AAC_MAX_CHANNELS] = {
     { 2, 0, 1, 6, 7, 4, 5, 3 },//AV_CH_LAYOUT_7POINT1
     { 2, 6, 7, 0, 1, 4, 5, 3 },//AV_CH_LAYOUT_7POINT1_WIDE
     { 2, 0, 1, 4, 5, 3, 6, 7 },//AV_CH_LAYOUT_7POINT1_TOP, from https://github.com/mstorsjo/fdk-aac/blob/master/documentation/aacEncoder.pdf
+    { 2, 0, 1, 6, 7, 10, 11, 4, 5, 8, 3, 9, 14, 12, 13, 18, 19, 15, 16, 17, 20, 21, 22, 23 },//AV_CH_LAYOUT_22POINT2, order: SMPTE 2036-2-2008
 };
 
 /* duplicated from avpriv_mpeg4audio_sample_rates to avoid shared build

@@ -32,6 +32,8 @@
 
 #include "lpc.h"
 
+#define AAC_MAX_CHANNELS 24
+
 typedef enum AACCoder {
     AAC_CODER_ANMR = 0,
     AAC_CODER_TWOLOOP,
@@ -429,7 +431,7 @@ typedef struct AACEncContext {
     FFTContext mdct128;                          ///< short (128 samples) frame transform context
     AVFloatDSPContext *fdsp;
     AACPCEInfo pce;                              ///< PCE data, if needed
-    float *planar_samples[16];                   ///< saved preprocessed input
+    float *planar_samples[AAC_MAX_CHANNELS];     ///< saved preprocessed input
 
     int profile;                                 ///< copied from avctx
     int needs_pce;                               ///< flag for non-standard layout

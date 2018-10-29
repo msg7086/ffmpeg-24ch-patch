@@ -1012,6 +1012,10 @@ static av_cold int aac_encode_init(AVCodecContext *avctx)
             s->reorder_map = aac_chan_maps[9];
             s->chan_map = aac_chan_configs[8];
         }
+        if (avctx->channel_layout == AV_CH_LAYOUT_22POINT2) {
+            s->reorder_map = aac_chan_maps[10];
+            s->chan_map = aac_chan_configs[9];
+        }
     }
 
     if (!avctx->bit_rate) {
