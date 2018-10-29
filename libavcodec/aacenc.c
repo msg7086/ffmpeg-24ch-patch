@@ -33,6 +33,7 @@
 #include "libavutil/thread.h"
 #include "libavutil/float_dsp.h"
 #include "libavutil/opt.h"
+#include "libavutil/crc.h"
 #include "avcodec.h"
 #include "put_bits.h"
 #include "internal.h"
@@ -53,11 +54,16 @@ static AVOnce aac_table_init = AV_ONCE_INIT;
 
 static void put_pce(PutBitContext *pb, AVCodecContext *avctx)
 {
-    int i, j;
+    int i, j, k;
     AACEncContext *s = avctx->priv_data;
     AACPCEInfo *pce = &s->pce;
     const int bitexact = avctx->flags & AV_CODEC_FLAG_BITEXACT;
     const char *aux_data = bitexact ? "Lavc" : LIBAVCODEC_IDENT;
+    size_t comment_size, height_section_size;
+    uint32_t crc;
+    uint64_t height_info;
+    uint8_t buf[12] = {0};//holds height info for up to 48 channels, 2 bits per ch
+    int height_check;
 
     put_bits(pb, 4, 0);
 
@@ -82,10 +88,46 @@ static void put_pce(PutBitContext *pb, AVCodecContext *avctx)
             put_bits(pb, 4, pce->index[i][j]);
         }
     }
-
     avpriv_align_put_bits(pb);
-    put_bits(pb, 8, strlen(aux_data));
-    avpriv_put_string(pb, aux_data, 0);
+    comment_size = strlen(aux_data);
+    /* check whether height needs to be written */
+    height_check = 0;
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < pce->num_ele[i]; j++) {
+            height_check += pce->height[i][j];
+        }
+    }
+    /* 1 byte for PCE_HEIGHT_EXTENSION_SYNC, 1 byte for crc, 2 bits for each front, side , back element but not LFE; the wole is padded. */
+    height_section_size = height_check ? 2 + ceil((double)(pce->num_ele[0] +
+                          pce->num_ele[1] + pce->num_ele[2])/4.0) : 0;
+    if (height_section_size > 14) {
+        av_log(avctx, AV_LOG_ERROR, "PCE height extension %i info is too large\n", (int)height_section_size - 2);
+        height_check = 0;
+    }
+    put_bits(pb, 8, comment_size + height_section_size);
+    avpriv_put_string(pb, aux_data, 0); /* regular comment */
+    /* height_extension_element section 4.4.1.2 ISO/IEC 14496-3:2009/Amd.4:2013  */
+    if (height_check) {
+        av_log(avctx, AV_LOG_INFO, "Writing PCE height extension info\n");
+        put_bits(pb, 8, PCE_HEIGHT_EXTENSION_SYNC);
+        height_info = 0;
+        k = 0;
+        for (i = 0; i < 3; i++) {
+            for (j = 0; j < pce->num_ele[i]; j++) {
+                put_bits(pb, 2, pce->height[i][j]);
+                height_info  += pce->height[i][j] << ((height_section_size - 2) * 8 - 2 - 2 * k++);
+            }
+        }
+         avpriv_align_put_bits(pb);
+
+        for (i = 0; i < height_section_size - 2; i++) {
+            buf[i] = (height_info >> 8 *(height_section_size - 3 - i)) & 0xff;
+        }
+
+        /* crc computation for front_element_height_info + side & back */
+        crc = av_crc(av_crc_get_table(AV_CRC_8_ATM), 0xff, buf, height_section_size - 2);
+        put_bits(pb, 8, crc);
+    }
 }
 
 /**
@@ -96,7 +138,7 @@ static int put_audio_specific_config(AVCodecContext *avctx)
 {
     PutBitContext pb;
     AACEncContext *s = avctx->priv_data;
-    const int max_size = 32;
+    const int max_size = 64;
     int channels = (!s->needs_pce)*(s->channels - (s->channels == 8 ? 1 : 0));
     if (avctx->channel_layout == AV_CH_LAYOUT_6POINT1)
         channels = (!s->needs_pce)*11;
@@ -114,7 +156,7 @@ static int put_audio_specific_config(AVCodecContext *avctx)
     init_put_bits(&pb, avctx->extradata, max_size);
     put_bits(&pb, 5, s->profile+1); //profile
     put_bits(&pb, 4, s->samplerate_index); //sample rate index
-    put_bits(&pb, 4, channels);
+    put_bits(&pb, 4, channels);//channel configuration index
     //GASpecificConfig
     put_bits(&pb, 1, 0); //frame length - 1024 samples
     put_bits(&pb, 1, 0); //does not depend on core coder
