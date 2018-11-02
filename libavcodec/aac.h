@@ -100,6 +100,13 @@ enum ChannelPosition {
     AAC_CHANNEL_CC    = 5,
 };
 
+enum ChannelHeight {
+    NORMAL_HEIGHT   = 0,
+    TOP_HEIGHT      = 1,
+    BOTTOM_HEIGHT   = 2,
+    RESERVED_HEIGHT = 3,
+};
+
 /**
  * The point during decoding at which channel coupling is applied.
  */
@@ -122,7 +129,7 @@ enum OCStatus {
 
 typedef struct OutputConfiguration {
     MPEG4AudioConfig m4ac;
-    uint8_t layout_map[MAX_ELEM_ID*4][3];
+    uint8_t layout_map[MAX_ELEM_ID*4][4];
     int layout_map_tags;
     int channels;
     uint64_t channel_layout;
