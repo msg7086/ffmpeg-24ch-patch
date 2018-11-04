@@ -257,7 +257,7 @@ static int count_paired_channels(uint8_t (*layout_map)[3], int tags, int pos,
     return num_pos_channels;
 }
 
-static uint64_t sniff_channel_order(uint8_t (*layout_map)[3], int tags)
+static uint64_t sniff_channel_order(AACContext *ac, uint8_t (*layout_map)[3], int tags)
 {
     int i, n, total_non_cc_elements;
     struct elem_to_channel e2c_vec[4 * MAX_ELEM_ID] = { { 0 } };
@@ -266,6 +266,14 @@ static uint64_t sniff_channel_order(uint8_t (*layout_map)[3], int tags)
 
     if (FF_ARRAY_ELEMS(e2c_vec) < tags)
         return 0;
+    // default channel layouts 7, 11, 13 & 14
+    if (ac->oc[1].m4ac.chan_config == 7 || ac->oc[1].m4ac.chan_config == 11 ||
+        ac->oc[1].m4ac.chan_config == 13 || ac->oc[1].m4ac.chan_config == 14) {
+        int config = ac->oc[1].m4ac.chan_config - 1;
+        memcpy(layout_map, aac_channel_layout_map_reordered[config], tags *
+               sizeof(layout_map[0]));
+        return aac_channel_layout[config];
+    }
 
     i = 0;
     num_front_channels =
@@ -463,7 +471,7 @@ static int output_configure(AACContext *ac,
     // Try to sniff a reasonable channel order, otherwise output the
     // channels in the order the PCE declared them.
     if (avctx->request_channel_layout != AV_CH_LAYOUT_NATIVE)
-        layout = sniff_channel_order(layout_map, tags);
+        layout = sniff_channel_order(ac, layout_map, tags);
     for (i = 0; i < tags; i++) {
         int type =     layout_map[i][0];
         int id =       layout_map[i][1];
@@ -537,21 +545,24 @@ static int set_default_channel_config(AACContext *ac, AVCodecContext *avctx,
            *tags * sizeof(*layout_map));
 
     /*
-     * AAC specification has 7.1(wide) as a default layout for 8-channel streams.
+     * AAC specification Amd.4:2013 has 7.1(wide-side) as a default layout for
+     * 8-channel streams (before Amd.4, ISO/IEC ISO/IEC 14496-3:2009 listed
+     * 7.1(side) instead).
      * However, at least Nero AAC encoder encodes 7.1 streams using the default
      * channel config 7, mapping the side channels of the original audio stream
      * to the second AAC_CHANNEL_FRONT pair in the AAC stream. Similarly, e.g. FAAD
      * decodes the second AAC_CHANNEL_FRONT pair as side channels, therefore decoding
      * the incorrect streams as if they were correct (and as the encoder intended).
      *
-     * As actual intended 7.1(wide) streams are very rare, default to assuming a
-     * 7.1 layout was intended.
+     * As actual intended 7.1(wide-side) streams are very rare, default to
+     * assuming a 7.1 layout was intended.
+     * So substitute to channel config 12 ( = 7.1 = FL+FR+FC+LFE+SL+SR+BL+BR)
      */
-    if (channel_config == 7 && avctx->strict_std_compliance < FF_COMPLIANCE_STRICT && (!ac || !ac->warned_71_wide++)) {
+    if (channel_config == 7 && avctx->strict_std_compliance < FF_COMPLIANCE_STRICT) {
         av_log(avctx, AV_LOG_INFO, "Assuming an incorrectly encoded 7.1 channel layout"
-               " instead of a spec-compliant 7.1(wide) layout, use -strict %d to decode"
+               " instead of a spec-compliant 7.1(wide_side) layout, use -strict %d to decode"
                " according to the specification instead.\n", FF_COMPLIANCE_STRICT);
-        layout_map[2][2] = AAC_CHANNEL_SIDE;
+            memcpy(layout_map, aac_channel_layout_map[11], *tags * sizeof(*layout_map));
     }
 
     return 0;
@@ -606,6 +617,79 @@ static ChannelElement *get_che(AACContext *ac, int type, int elem_id)
     /* For indexed channel configurations map the channels solely based
      * on position. */
     switch (ac->oc[1].m4ac.chan_config) {
+    case 14:
+        switch(ac->tags_mapped){
+        case 0:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_SCE][elem_id] = ac->che[TYPE_SCE][0];
+        case 1:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][0];
+        case 2:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][1];
+        case 3:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_LFE][elem_id] = ac->che[TYPE_LFE][0];
+        case 4:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][2];
+        default:
+            break;
+        }
+    case 13:
+        switch(ac->tags_mapped){
+        case 0:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_SCE][elem_id] = ac->che[TYPE_SCE][0];
+        case 1:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][0];
+        case 2:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][1];
+        case 3:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][2];
+        case 4:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][3];
+        case 5:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_SCE][elem_id] = ac->che[TYPE_SCE][1];
+        case 6:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_LFE][elem_id] = ac->che[TYPE_LFE][0];
+        case 7:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_LFE][elem_id] = ac->che[TYPE_LFE][1];
+        case 8:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_SCE][elem_id] = ac->che[TYPE_SCE][2];
+        case 9:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][4];
+        case 10:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][5];
+        case 11:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_SCE][elem_id] = ac->che[TYPE_SCE][3];
+        case 12:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][6];
+        case 13:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_SCE][elem_id] = ac->che[TYPE_SCE][4];
+        case 14:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_SCE][elem_id] = ac->che[TYPE_SCE][5];
+        case 15:
+            ac->tags_mapped++;
+            return ac->tag_che_map[TYPE_CPE][elem_id] = ac->che[TYPE_CPE][7];
+        default:
+            break;
+        }
     case 12:
     case 7:
         if (ac->tags_mapped == 3 && type == TYPE_CPE) {
