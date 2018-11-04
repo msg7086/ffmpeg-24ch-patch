@@ -64,8 +64,8 @@ const int avpriv_mpeg4audio_sample_rates[16] = {
     24000, 22050, 16000, 12000, 11025, 8000, 7350
 };
 
-const uint8_t ff_mpeg4audio_channels[8] = {
-    0, 1, 2, 3, 4, 5, 6, 8
+const uint8_t ff_mpeg4audio_channels[16] = {
+    0, 1, 2, 3, 4, 5, 6, 8, 0, 0, 0, 7, 8, 24, 8,
 };
 
 static inline int get_object_type(GetBitContext *gb)
